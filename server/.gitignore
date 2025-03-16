@@ -1,0 +1,24 @@
+# Node modules
+node_modules/
+dist/
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Swagger generated docs (optional)
+swagger.json
+swagger.yaml

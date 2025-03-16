@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2018",
+    "module": "CommonJS",  // Change from "NodeNext" to "CommonJS" to avoid import issues
+    "moduleResolution": "Node",
+    "rootDir": ".",  // Ensures TypeScript knows where your source files are
+    "outDir": "dist",  // Compiled JavaScript files will go here
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["*.ts"],  // This tells TypeScript to compile all .ts files in the root
+  "exclude": ["node_modules", "dist"]  // Ignore these directories
+}
