@@ -1,9 +1,8 @@
-import express from 'express';
-import {login, createUser} from '../controller/user.controller';
-import { validateUser } from '../middlewares/validation/user';
+import express from "express";
+import { login, createUser } from "../controller/user/user.controller";
+import { validateUser } from "../middlewares/validation/user";
 
 var router = express.Router();
-
 
 /**
  * @swagger
@@ -39,18 +38,17 @@ var router = express.Router();
  *       401:
  *         description: Unauthorized - Invalid credentials
  */
-router.post('/login', (req, res) => {
+router.post("/login", (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
   login(email, password)
-    .then(data => {
+    .then((data) => {
       res.status(201).send(data);
     })
-    .catch(err => {
+    .catch((err) => {
       res.status(401).send(err);
-    })
+    });
 });
-
 
 /**
  * @swagger
@@ -84,16 +82,41 @@ router.post('/login', (req, res) => {
  *       500:
  *         description: Server error
  */
-router.post('/register', validateUser, (req, res) => {
+router.post("/register", validateUser, (req, res) => {
   createUser(req.body)
     .then(() => {
       res.status(201).send("User registered successfully!");
     })
-    .catch(err => {
-      console.error(err);
-      res.status(500).send(err);
+    .catch((error) => {
+      console.error(error);
+
+      // Check for duplicate email error
+      if (error.message && error.message.includes("already exists")) {
+        return res.status(409).json({
+          // 409 Conflict is appropriate for this case
+          status: "error",
+          message: error.message,
+        });
+      }
+
+      // Database constraint errors (if the above check doesn't catch it)
+      if (
+        error.code === "23505" || // PostgreSQL unique violation
+        error.code === "ER_DUP_ENTRY" || // MySQL
+        error.message.includes("duplicate")
+      ) {
+        return res.status(409).json({
+          status: "error",
+          message: "Email address is already in use",
+        });
+      }
+
+      // Any other error
+      res.status(500).json({
+        status: "error",
+        message: "An error occurred while creating the user",
+      });
     });
 });
 
 export default router;
-

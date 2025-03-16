@@ -1,8 +1,8 @@
-import dataSource from "../db/db-source";
-import { Profile } from "../db/entities/Profile";
-import { Role } from "../db/entities/Role";
-import { User } from "../db/entities/User";
-import { NSUser } from "../types/user";
+import dataSource from "../../db/db-source";
+import { Profile } from "../../db/entities/Profile";
+import { Role } from "../../db/entities/Role";
+import { User } from "../../db/entities/User";
+import { NSUser } from "../../types/user";
 import jwt from "jsonwebtoken";
 import { In } from "typeorm";
 import bcrypt from "bcrypt";
@@ -66,19 +66,57 @@ const login = async (email: string, password: string) => {
 };
 
 const createUser = async (payload: NSUser.Item) => {
+  // First, check if a user with this email already exists
+  const existingUser = await User.findOne({ where: { email: payload.email } });
+
+  if (existingUser) {
+    throw new Error(`User with email '${payload.email}' already exists`);
+  }
+
+  // If the user doesn't exist, proceed with creating the new user
   return dataSource.manager.transaction(async (transaction) => {
-    const [firstName, ...lastName] = payload.name.split(" ");
-    const profile = Profile.create({
-      firstName,
-      lastName: lastName.join(" "),
-      status: payload?.status,
-    });
-    await transaction.save(profile);
-    const newUser = User.create(payload);
-    const roles = await Role.find({ where: { name: newUser?.type || "user" } });
-    newUser.roles = roles;
-    newUser.profile = profile;
-    await transaction.save(newUser);
+    try {
+      // Parse the name into first name and last name
+      const nameParts = payload.name.split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      // Create and save the profile
+      const profile = Profile.create({
+        firstName,
+        lastName,
+        status: payload?.status,
+      });
+      await transaction.save(profile);
+
+      // Create the user
+      const newUser = User.create(payload);
+
+      // Find and assign roles (default to 'user' if not specified)
+      const roles = await Role.find({
+        where: { name: newUser?.type || "user" },
+      });
+      newUser.roles = roles;
+
+      // Assign profile
+      newUser.profile = profile;
+
+      // Save the user
+      await transaction.save(newUser);
+
+      return {
+        success: true,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+        },
+      };
+    } catch (error) {
+      // Rollback happens automatically in case of an error due to transaction
+      console.error("Error creating user:", error);
+      throw new Error("Failed to create user");
+    }
   });
 };
 
@@ -142,6 +180,21 @@ const getUsers = async (
   };
 };
 
+const updateUserProfile = async (userId: string, updates: any) => {
+  const user = await User.findOne({ where: { id: userId } });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // Update allowed fields
+  if (updates.name) user.name = updates.name;
+  if (updates.email) user.email = updates.email;
+
+  // Save the updated user
+  return user.save();
+};
+
 const editUser = async (
   payload: { roleId: string; userId: string },
   currentUser: User
@@ -203,4 +256,12 @@ const deleteUser = async (userId: string, currentUser: User) => {
   return User.delete(userId);
 };
 
-export { createUser, editUser, getUser, login, getUsers, deleteUser };
+export {
+  createUser,
+  editUser,
+  getUser,
+  login,
+  getUsers,
+  deleteUser,
+  updateUserProfile,
+};

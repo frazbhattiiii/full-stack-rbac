@@ -49,4 +49,38 @@ const createRole = async (payload: NSRole.Item) => {
     return newRole.save();
 }
 
-export { createRole }
+const deleteRole = async (id: string) => {
+    const role = await Role.findOne({
+        where: { id },
+        relations: ['users', 'permissions']
+    });
+    
+    if (!role) {
+        throw new Error(`Role with ID '${id}' not found`);
+    }
+    
+    // Check if this role is assigned to any users
+    if (role.users && role.users.length > 0) {
+        throw new Error(`Cannot delete role '${role.name}' because it is assigned to ${role.users.length} user${role.users.length > 1 ? 's' : ''}`);
+    }
+    
+    // Remove all permission associations
+    role.permissions = [];
+    await role.save();
+    
+    // Now delete the role
+    await role.remove();
+    return { success: true, message: `Role '${role.name}' deleted successfully` };
+};
+
+const getAllRoles = async () => {
+    // Fetch all roles with their permissions
+    return Role.find({
+      relations: ['permissions'],
+      order: {
+        createdAt: 'DESC'
+      }
+    });
+  }
+
+export { createRole, getAllRoles, deleteRole }

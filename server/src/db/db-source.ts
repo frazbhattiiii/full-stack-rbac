@@ -12,8 +12,7 @@ const dataSource = new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   entities: [User, Role, Permission, Profile],
-  synchronize: true,
-  logging: false
+  synchronize: process.env.NODE_ENV !== "production",
 });
 
 dataSource.initialize().then(() => {

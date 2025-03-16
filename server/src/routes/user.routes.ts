@@ -1,14 +1,11 @@
 import express from "express";
-import { validateUser } from "../middlewares/validation/user";
 import {
-  createUser,
   editUser,
   deleteUser,
   getUser,
   getUsers,
-  login,
-} from "../controller/user.controller";
-import { validateEditUser } from "../middlewares/validation/editUser";
+  updateUserProfile,
+} from "../controller/user/user.controller";
 import { authorize } from "../middlewares/auth/authorize";
 import { authenticate } from "../middlewares/auth/authenticate";
 import { User } from "../db/entities/User";
@@ -44,24 +41,160 @@ var router = express.Router();
 router.put(
   "/",
   authenticate,
-  authorize("EDIT_user"),
-  validateEditUser,
+  authorize("READ_users"),
   async (req, res, next) => {
-    const currentUser =
-      (await User.findOne({
+    try {
+      const currentUser = await User.findOne({
         where: { name: res.locals.user.name, email: res.locals?.user.email },
         relations: ["roles", "roles.permissions"],
-      })) || new User();
-    editUser(req.body, currentUser)
-      .then(() => {
-        res.status(201).send("User edited successfully!!");
-      })
-      .catch((err) => {
-        console.error(err);
-        res.status(500).send(err);
       });
+
+      if (!currentUser) {
+        return res.status(404).json({
+          status: "error",
+          message: "User not found",
+        });
+      }
+
+      // Add the userId to the request body from the authenticated user
+      const updatedData = {
+        ...req.body,
+        userId: currentUser.id, // Add userId from the authenticated user
+      };
+
+      await editUser(updatedData, currentUser);
+
+      res.status(200).json({
+        status: "success",
+        message: "User edited successfully!",
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({
+        status: "error",
+        message: Array.isArray(err)
+          ? err
+          : "An error occurred while updating user",
+      });
+    }
   }
 );
+
+/**
+ * @swagger
+ * /user/profile:
+ *   put:
+ *     summary: Update user profile
+ *     description: Updates the authenticated user's profile information including name and email
+ *     tags:
+ *       - User
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: User's full name
+ *                 example: "John Doe"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *                 example: "john.doe@example.com"
+ *             required:
+ *               - name
+ *               - email
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "success"
+ *                 message:
+ *                   type: string
+ *                   example: "Profile updated successfully!"
+ *       401:
+ *         description: Unauthorized - User is not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "error"
+ *                 message:
+ *                   type: string
+ *                   example: "Authentication required"
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "error"
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: "error"
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while updating profile"
+ */
+router.put("/profile", authenticate, async (req, res) => {
+  try {
+    // Get the current user from authentication
+    const currentUser = await User.findOne({
+      where: { id: res.locals.user.id },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found",
+      });
+    }
+
+    // Extract update fields from request
+    const { name, email } = req.body;
+
+    // Update profile
+    await updateUserProfile(currentUser.id, { name, email });
+
+    res.status(200).json({
+      status: "success",
+      message: "Profile updated successfully!",
+    });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({
+      status: "error",
+      message: err.message || "An error occurred while updating profile",
+    });
+  }
+});
 
 /**
  * @swagger
@@ -83,7 +216,7 @@ router.put(
  *       404:
  *         description: User not found
  */
-router.get("/:id", authenticate, authorize("GET_user"), async (req, res) => {
+router.get("/:id", authenticate, authorize("READ_users"), async (req, res) => {
   const id = req.params.id;
   getUser({ id })
     .then((data) => {
@@ -125,7 +258,7 @@ router.get("/:id", authenticate, authorize("GET_user"), async (req, res) => {
 router.get(
   "/",
   authenticate,
-  authorize("READ_user"),
+  authorize("READ_admins"),
   async (req, res, next) => {
     const payload = {
       page: req.query.page?.toString() || "1",
