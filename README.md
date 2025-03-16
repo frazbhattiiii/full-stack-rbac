@@ -70,6 +70,16 @@ npm install
 npm run dev
 ```
 
+5. Seed the database with initial data:
+```bash
+npm run dev:seed
+```
+This will create an admin user with the following credentials:
+- Email: admin@example.com
+- Password: admin123
+
+You can modify these default values in the `server/seed.ts` file.
+
 #### Frontend Setup
 
 1. Navigate to the frontend directory:
